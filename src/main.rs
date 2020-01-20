@@ -1,3 +1,4 @@
+use clap::{App, AppSettings, Arg};
 use failure::{format_err, Error};
 use graphql_client::{GraphQLQuery, Response};
 use serde_json;
@@ -5,8 +6,45 @@ use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    let matches = App::new("graphql-to-jddf")
+        .version(env!("CARGO_PKG_VERSION"))
+        .about("Generates a JDDF schema from a GraphQL schema")
+        .setting(AppSettings::ColoredHelp)
+        .arg(
+            Arg::with_name("http-endpoint")
+                .help("Download the GraphQL schema (using introspection) over HTTP or HTTPS, instead of from STDIN (the default behavior)")
+                .long("http-endpoint")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("http-bearer-token")
+                .help("A bearer token to use in combination with --http-endpoint")
+                .long("http-bearer-token")
+                .takes_value(true)
+        )
+        .get_matches();
+
     let graphql_schema: Response<introspection_query::ResponseData> =
-        serde_json::from_reader(std::io::stdin())?;
+        if let Some(endpoint) = matches.value_of("http-endpoint") {
+            let client = reqwest::Client::builder()
+                .user_agent(concat!("graphql-to-jddf/", env!("CARGO_PKG_VERSION")))
+                .build()?;
+
+            let req = client.post(endpoint).json(&IntrospectionQuery::build_query(
+                introspection_query::Variables {},
+            ));
+
+            let req = if let Some(bearer_token) = matches.value_of("http-bearer-token") {
+                req.bearer_auth(bearer_token)
+            } else {
+                req
+            };
+
+            let res = req.send().await?;
+            res.json().await?
+        } else {
+            serde_json::from_reader(std::io::stdin())?
+        };
 
     let graphql_schema = graphql_schema
         .data
@@ -78,13 +116,43 @@ enum GraphQLType {
     },
     NonNull(Box<GraphQLType>),
     List(Box<GraphQLType>),
+    Unknown,
 }
 
 impl GraphQLType {
     fn into_jddf(self) -> jddf::Schema {
         match self {
             Self::Ref(name) => {
-                jddf::Schema::from_parts(None, Box::new(jddf::Form::Ref(name)), HashMap::new())
+                // Most uses of scalar are mediated by a reference. To reduce
+                // noise in the outputted schema, we attempt to detect known
+                // scalars and avoid emitting a "ref"-form schema.
+                match name.as_str() {
+                    "Int" => jddf::Schema::from_parts(
+                        None,
+                        Box::new(jddf::Form::Type(jddf::Type::Int32)),
+                        HashMap::new(),
+                    ),
+                    "Float" => jddf::Schema::from_parts(
+                        None,
+                        Box::new(jddf::Form::Type(jddf::Type::Float64)),
+                        HashMap::new(),
+                    ),
+                    "Boolean" => jddf::Schema::from_parts(
+                        None,
+                        Box::new(jddf::Form::Type(jddf::Type::Boolean)),
+                        HashMap::new(),
+                    ),
+                    "String" | "ID" => jddf::Schema::from_parts(
+                        None,
+                        Box::new(jddf::Form::Type(jddf::Type::String)),
+                        HashMap::new(),
+                    ),
+                    _ => jddf::Schema::from_parts(
+                        None,
+                        Box::new(jddf::Form::Ref(name)),
+                        HashMap::new(),
+                    ),
+                }
             }
 
             Self::Scalar(scalar) => match scalar.as_str() {
@@ -194,6 +262,10 @@ impl GraphQLType {
                     }),
                     HashMap::new(),
                 )
+            }
+
+            Self::Unknown => {
+                jddf::Schema::from_parts(None, Box::new(jddf::Form::Empty), HashMap::new())
             }
 
             _ => unreachable!(),
@@ -437,6 +509,14 @@ impl GraphQLType {
                 name: Some(name),
                 ..
             } => GraphQLType::Ref(name),
+            introspection_query::TypeRefOfTypeOfTypeOfTypeOfTypeOfTypeOfTypeOfType {
+                kind: introspection_query::__TypeKind::NON_NULL,
+                ..
+            } => GraphQLType::NonNull(Box::new(GraphQLType::Unknown)),
+            introspection_query::TypeRefOfTypeOfTypeOfTypeOfTypeOfTypeOfTypeOfType {
+                kind: introspection_query::__TypeKind::LIST,
+                ..
+            } => GraphQLType::List(Box::new(GraphQLType::Unknown)),
             _ => unreachable!(),
         }
     }

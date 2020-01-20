@@ -91,7 +91,7 @@ repo.
 
 [example-graphql-servier]: ./example_graphql_server/index.js
 
-## A more complex GraphQL schema
+### A more complex GraphQL schema
 
 The GraphQL schema:
 
@@ -165,7 +165,7 @@ Becomes:
 }
 ```
 
-## Limitations of nesting
+### Limitations of nesting
 
 GraphQL's introspection system doesn't make it possible to get arbitrarily-deep
 arrays or non-null values. As a result, at a certain point `graphql-to-jddf`
@@ -241,7 +241,7 @@ And so becomes (note the lack of `{"type": "string"}`):
 }
 ```
 
-## Limitations of unions and interfaces
+### Limitations of unions and interfaces
 
 `graphql-to-jddf` produces less-than-ideal output for GraphQL interfaces and
 unions:

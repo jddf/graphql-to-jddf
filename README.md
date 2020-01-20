@@ -3,11 +3,11 @@
 `graphql-to-jddf` generates a JDDF schema from a GraphQL schema. Some use-cases
 include:
 
-* Generating types from GraphQL (by using `graphql-to-jddf` in conjuction with
+- Generating types from GraphQL (by using `graphql-to-jddf` in conjuction with
   [`jddf-codegen`][jddf-codegen]),
-* Generating fake data from GraphqL (by using `graphql-to-jddf` in conjuction
-   with [`jddf-fuzz`][jddf-fuzz]),
-* Validating GraphQL data outside of a GraphQL server (by using
+- Generating fake data from GraphQL (by using `graphql-to-jddf` in conjuction
+  with [`jddf-fuzz`][jddf-fuzz]),
+- Validating GraphQL data outside of a GraphQL server (by using
   `graphql-to-jddf` in conjunction with any JDDF implementation).
 
 [jddf-codegen]: https://github.com/jddf/jddf-codegen
@@ -53,7 +53,7 @@ graphql-to-jddf \
   --http-bearer-token=YOUR_BEARER_TOKEN_HERE
 ```
 
-`graphql-to-jddf` works off of *introspected GraphQL schemas*, not `.graphql`
+`graphql-to-jddf` works off of _introspected GraphQL schemas_, not `.graphql`
 schema files. If you're not serving your GraphQL over HTTP/HTTPS, or if you're
 not using a Bearer-based auth strategy, you can also simply pass the output of
 the standard introspection GraphQL query as input to `graphql-to-jddf`.
